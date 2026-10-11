@@ -12,6 +12,8 @@ use std::time::Duration;
 
 /// How long the impact frame lasts
 pub const FRAME_DURATION: Duration = Duration::from_millis(1000 * 1 / animation::ANIM_FPS);
+/// Duration of the final animation
+pub const FINISHER_ANIM_TIME: Duration = Duration::from_millis(1000 * 20 / animation::ANIM_FPS);
 
 /// Global size multiplier of the impact effect, tune to the scene scale
 const IMPACT_SCALE: f32 = 1.0;
