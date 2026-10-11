@@ -175,7 +175,8 @@ fn finisher_counter_impact(queue: &mut AnimationQueue, assets: &FxAssets, impact
     }
 
     fc += 2;
-    impact_frame(queue, frame(fc), Lit::Defender, swapped, false);
+    /* Hacky: if swapped, we restore the background since that's a counter */
+    impact_frame(queue, frame(fc), Lit::Defender, swapped, swapped);
     ellipses(queue, assets, impact, frame(fc), 2, rng);
 }
 

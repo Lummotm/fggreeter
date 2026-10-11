@@ -237,15 +237,18 @@ fn create_animator(
         .map(|(windup, finisher, counter)| {
             let windup_node = graph.add_clip(windup.clone(), 1.0, graph.root);
             if let Some(mut clip) = clips.get_mut(windup) {
-                clip.add_event(FRAME_TIME.as_secs_f32(), WindupCharge);
+                /* Hacky way to avoid reading the hit bone mid transition */
+                clip.add_event((ANIM_TRANSITION_DURATION + FRAME_TIME).as_secs_f32(), WindupCharge);
             }
             let finisher_node = graph.add_clip(finisher.clone(), 1.0, graph.root);
             if let Some(mut clip) = clips.get_mut(finisher) {
-                clip.add_event(FRAME_TIME.as_secs_f32(), FinisherImpact);
+                /* Hacky way to avoid reading the hit bone mid transition */
+                clip.add_event((ANIM_TRANSITION_DURATION + FRAME_TIME).as_secs_f32(), FinisherImpact);
             }
             let counter_node = graph.add_clip(counter.clone(), 1.0, graph.root);
             if let Some(mut clip) = clips.get_mut(counter) {
-                clip.add_event(FRAME_TIME.as_secs_f32(), CounterImpact);
+                /* Hacky way to avoid reading the hit bone mid transition */
+                clip.add_event((ANIM_TRANSITION_DURATION + FRAME_TIME).as_secs_f32(), CounterImpact);
             }
             WindupClip {
                 windup: windup_node,
