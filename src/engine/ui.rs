@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
 #[derive(Component)]
+pub struct MainUiPanel;
+
+#[derive(Component)]
 pub struct InputField;
 
 #[derive(Component)]
@@ -51,6 +54,8 @@ fn setup_ui(mut commands: Commands, login_state: Res<crate::engine::input::Input
                 border_radius: BorderRadius::all(px(6)),
                 ..default()
             },
+            MainUiPanel,
+            crate::engine::animation::ShakeOnHit,
             BackgroundColor(PANEL),
             BorderColor::all(ACCENT),
             children![

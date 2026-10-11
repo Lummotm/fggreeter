@@ -115,7 +115,10 @@ fn send_greetd_response(channel: NonSend<GreetdChannel>, input_state: Res<crate:
 /// the animation before asking to enter the user session.
 fn start_finisher_timer(mut commands: Commands) {
     tracing::debug!("Entered Accepted state, starting finisher timer");
-    commands.insert_resource(FinisherTimer(Timer::from_seconds(0.2, TimerMode::Once)));
+    commands.insert_resource(FinisherTimer(Timer::from_seconds(
+        crate::engine::animation::FINISHER_ANIM_TIME.as_secs_f32(),
+        TimerMode::Once,
+    )));
 }
 
 /// Tick the finisher animation timer, and ask to start the user session when the timer ran out.

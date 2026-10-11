@@ -1,61 +1,57 @@
-use bevy::pbr::Material;
-use bevy::pbr::MaterialPlugin;
 use bevy::prelude::*;
-use bevy::render::render_resource::AsBindGroup;
-use bevy::render::render_resource::ShaderType;
-use bevy::shader::ShaderRef;
 
-#[derive(ShaderType, Clone, Debug)]
-pub struct LandscapeParams {
-    pub mountain_lit: LinearRgba,
-    pub mountain_shadow: LinearRgba,
-    pub ridge_top: LinearRgba,
-    pub ridge_bottom: LinearRgba,
-    pub ground_lit: LinearRgba,
-    pub ground_shadow: LinearRgba,
-    pub sky_top: LinearRgba,
-    pub sky_horizon: LinearRgba,
-    pub aspect: f32,
-    pub seed: f32,
-}
+/// Path of the background image asset
+const BACKGROUND_ASSET_PATH: &str = "images/background.png";
 
-#[derive(Asset, TypePath, AsBindGroup, Clone)]
-pub struct LandscapeMaterial {
-    #[uniform(0)]
-    pub params: LandscapeParams,
-}
-
-impl Material for LandscapeMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/landscape.wgsl".into()
-    }
-}
+/// Background waiting for its image to load, to be sized from the image aspect ratio
+#[derive(Component)]
+struct UnfittedBackground(Handle<Image>);
 
 pub fn add_plugins(app: &mut App) {
-    app.add_plugins(MaterialPlugin::<LandscapeMaterial>::default())
-        .add_systems(Startup, spawn_landscape);
+    app.add_systems(Startup, spawn_background);
+    app.add_systems(Update, fit_background);
 }
 
-fn spawn_landscape(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<LandscapeMaterial>>) {
-    let h = crate::engine::camera::SCENE_HEIGHT;
-    let w = h * 2.4; // covers screens up to 2.4:1
+fn spawn_background(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let image: Handle<Image> = asset_server.load(BACKGROUND_ASSET_PATH);
     let quad_pos = crate::engine::camera::SCENE_CENTER + vec3(0.0, 0.0, -4.0);
     commands.spawn((
-        Mesh3d(meshes.add(Rectangle::new(w, h))),
-        MeshMaterial3d(materials.add(LandscapeMaterial {
-            params: LandscapeParams {
-                mountain_lit: Color::srgb(0.99, 0.99, 1.00).to_linear(),
-                mountain_shadow: Color::srgb(0.78, 0.86, 0.93).to_linear(),
-                ridge_top: Color::srgb(0.478, 0.506, 0.6).to_linear(),
-                ridge_bottom: Color::srgb(0.427, 0.471, 0.62).to_linear(),
-                ground_lit: Color::srgb(1.0, 0.631, 0.078).to_linear(),
-                ground_shadow: Color::srgb(1.0, 0.631, 0.078).to_linear(),
-                sky_top: Color::srgb(0.96, 0.72, 0.78).to_linear(),
-                sky_horizon: Color::srgb(1.00, 0.84, 0.66).to_linear(),
-                aspect: w / h,
-                seed: 4.2,
-            },
+        crate::engine::animation::HiddenOnImpact,
+        UnfittedBackground(image.clone()),
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color_texture: Some(image),
+            unlit: true,
+            ..default()
         })),
         Transform::from_translation(quad_pos),
+        /* Hidden until sized, so the quad doesn't flash at the wrong size */
+        Visibility::Hidden,
     ));
+}
+
+/// Once the image is loaded, scale the quad to fill the scene height and keep the image proportions
+fn fit_background(
+    images: Res<Assets<Image>>,
+    mut backgrounds: Query<(Entity, &UnfittedBackground, &mut Transform, &mut Visibility)>,
+    mut commands: Commands,
+) {
+    for (entity, background, mut transform, mut visibility) in &mut backgrounds {
+        let Some(image) = images.get(&background.0) else { continue };
+        if image.height() == 0 {
+            continue;
+        }
+
+        let h = crate::engine::camera::SCENE_HEIGHT;
+        let aspect = image.width() as f32 / image.height() as f32;
+        transform.scale = vec3(h * aspect, h, 1.0);
+        *visibility = Visibility::Inherited;
+
+        commands.entity(entity).remove::<UnfittedBackground>();
+    }
 }
