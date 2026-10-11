@@ -3,9 +3,6 @@ mod utils;
 
 use bevy::prelude::*;
 
-#[derive(Resource)]
-pub struct FinisherTimer(Timer);
-
 /// Main state of the greeter.
 #[derive(States)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -24,9 +21,6 @@ pub enum GreeterState {
     /// State for when greetd accepted the response and we can start the session.
     /// This state is also used to deliver the enter animation of the greeter.
     Accepted,
-    /// Dummy end state that signals we are all good and the session has been launched.
-    /// If the greeter ever enters this state, it shall be killed pretty soon.
-    SessionLaunched,
     /// State for when the answer provided to greetd is invalid.
     /// This will cause a session cancel and re-entered to be able to try auth again.
     Rejected,
@@ -45,7 +39,6 @@ impl std::fmt::Display for GreeterState {
             Self::Input => write!(f, "Input"),
             Self::Submitting => write!(f, "Submitting"),
             Self::Accepted => write!(f, "Accepted"),
-            Self::SessionLaunched => write!(f, "SessionLaunched"),
             Self::Rejected => write!(f, "Rejected"),
             Self::Info => write!(f, "Info"),
             Self::Error => write!(f, "Error"),
@@ -80,7 +73,6 @@ pub fn add_plugins(app: &mut App, socket: std::os::unix::net::UnixStream) {
     app.init_state::<GreeterState>();
 
     app.add_systems(Update, handle_greetd_response);
-    app.add_systems(Update, tick_finisher_timer);
     app.add_systems(OnEnter(GreeterState::Init), start_greetd_session);
     app.add_systems(OnEnter(GreeterState::Submitting), send_greetd_response);
     app.add_systems(OnEnter(GreeterState::Accepted), start_finisher_timer);
@@ -113,30 +105,13 @@ fn send_greetd_response(channel: NonSend<GreetdChannel>, input_state: Res<crate:
 
 /// When we enter the accepted part, spin up a small timer to show
 /// the animation before asking to enter the user session.
-fn start_finisher_timer(mut commands: Commands) {
-    tracing::debug!("Entered Accepted state, starting finisher timer");
-    commands.insert_resource(FinisherTimer(Timer::from_seconds(
-        crate::engine::animation::FINISHER_ANIM_TIME.as_secs_f32(),
-        TimerMode::Once,
-    )));
-}
-
-/// Tick the finisher animation timer, and ask to start the user session when the timer ran out.
-fn tick_finisher_timer(
-    time: Res<Time>,
-    channel: NonSend<GreetdChannel>,
-    input_state: Res<crate::engine::input::InputState>,
-    mut timer: If<ResMut<FinisherTimer>>,
-) {
-    timer.0.0.tick(time.delta());
-    if timer.0.0.just_finished() {
-        tracing::debug!("Finisher timer timed out, sending a start user session request");
-        let request = greetd_ipc::Request::StartSession {
-            cmd: input_state.command.clone(),
-            env: Vec::new(),
-        };
-        utils::log_err(channel.sender.send(request));
-    }
+fn start_finisher_timer(channel: NonSend<GreetdChannel>, input_state: Res<crate::engine::input::InputState>) {
+    tracing::debug!("Entered Accepted state, sending a start user session request");
+    let request = greetd_ipc::Request::StartSession {
+        cmd: input_state.command.clone(),
+        env: Vec::new(),
+    };
+    utils::log_err(channel.sender.send(request));
 }
 
 /// Listen for when we enter the countered state (Countered) to restart the greetd session
@@ -216,8 +191,9 @@ fn advance(
         }
         /* In accepted state, when receiving a sucess, it means greetd launched the session */
         (GreeterState::Accepted, greetd_ipc::Response::Success) => {
-            tracing::debug!("Greetd started the user session, going to SessionLaunched state");
-            state.next_state.set(GreeterState::SessionLaunched);
+            tracing::debug!("Greetd started the user session, exiting process");
+            /* SAFETY: hard exit to not wait on any cleanup and stop the greeter asap */
+            unsafe { libc::_exit(0) };
         }
 
         /* ========= Authentication Error ========= */

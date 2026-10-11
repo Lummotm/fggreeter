@@ -8,7 +8,6 @@ mod ui;
 use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 
-pub use animations::FINISHER_ANIM_TIME;
 pub use impact_frame::HiddenOnImpact;
 pub use screen_shake::ShakeOnHit;
 
